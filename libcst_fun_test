@@ -1,0 +1,32 @@
+import libcst as cst
+from libcst import metadata
+
+class UnusedVariableVisitor(cst.CSTVisitor):
+    def __init__(self):
+        self.unused_variables = set()
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        used_vars = set()
+        for stmt in node.body:
+            if isinstance(stmt, cst.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, cst.Name):
+                        used_vars.add(target.value)
+
+        for param in node.params.params:
+            if isinstance(param, cst.Param) and param.name.value not in used_vars:
+                self.unused_variables.add(param.name.value)
+
+    def get_unused_variables(self) -> set:
+        return self.unused_variables
+
+#被检测部分
+#code = """
+#def example(a, b):
+#    print(a)
+#"""
+tree = cst.parse_module(code)
+visitor = UnusedVariableVisitor()
+tree.visit(visitor)
+unused_variables = visitor.get_unused_variables()
+print("Unused variables:", unused_variables)
