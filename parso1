@@ -1,0 +1,31 @@
+from parso import parse
+from parso.python.tree import PythonNode
+
+class UnusedParameterVisitor:
+    def __init__(self, code):
+        self.tree = parse(code)
+        self._used_names = set()
+
+    def visit_FunctionDef(self, node):
+        # 检查函数定义中的参数
+        for param in node.get_params():
+            param_name = param.name.value
+            if param_name not in self._used_names:
+                print(f"Unused parameter: {param_name}")
+
+    def visit_Name(self, node):
+        # 如果名称是参数的一部分，将其添加到已使用名称的集合中
+        if node.parent and isinstance(node.parent, PythonNode) and node.parent.type == 'FunctionDef':
+            self._used_names.add(node.value)
+
+    def find_all_names(self):
+        # 遍历整个树，收集所有使用的名称
+        self.tree.accept(self)
+
+# 使用示例
+code = """
+def example(a, b):
+    print(a)
+"""
+visitor = UnusedParameterVisitor(code)
+visitor.find_all_names()
