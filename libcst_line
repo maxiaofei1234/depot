@@ -1,0 +1,58 @@
+import libcst as cst
+
+class UnusedVariableVisitor(cst.CSTVisitor):
+    def __init__(self):
+        self.unused_variables = {}
+
+    def visit_Module(self, node: cst.Module) -> None:
+        # 遍历模块中的所有函数和类定义
+        for child in node.body:
+            if isinstance(child, cst.FunctionDef) or isinstance(child, cst.ClassDef):
+                self.visit(child)
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        used_vars = set()
+        self._check_usage(node, used_vars)
+        for param in node.params.params:
+            if isinstance(param, cst.Param) and param.name.value not in used_vars:
+                self.unused_variables[(node.name.value, param.name.value)] = node.start_line
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        used_vars = set()
+        self._check_usage(node, used_vars)
+        for item in node.body:
+            if isinstance(item, cst.FunctionDef):
+                self._check_usage(item, used_vars)
+
+    def _check_usage(self, node, used_vars):
+        for stmt in node.body:
+            if isinstance(stmt, cst.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, cst.Name):
+                        used_vars.add(target.value)
+            elif isinstance(stmt, cst.Expr) and isinstance(stmt.value, cst.Name):
+                used_vars.add(stmt.value.value)
+            elif isinstance(stmt, cst.For) or isinstance(stmt, cst.While):
+                used_vars.update(var.name.value for var in stmt.target.elts if isinstance(var, cst.Name))
+
+    def get_unused_variables(self) -> dict:
+        return self.unused_variables
+
+# 使用示例
+code = """
+def example(a, b):
+    print(a)
+    for i in range(10):
+        print(i)
+
+class MyClass:
+    def method(self, c, d):
+        print(c)
+"""
+
+tree = cst.parse_module(code)
+visitor = UnusedVariableVisitor()
+tree.visit(visitor)
+unused_variables = visitor.get_unused_variables()
+for (func_name, var_name), line in unused_variables.items():
+    print(f"Unused variable '{var_name}' in function '{func_name}' at line {line}")
